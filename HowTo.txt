@@ -1,0 +1,95 @@
+--Instructions on Making and Using a Custom Skill:
+Step 1: Create Skill icon
+
+	A skill icon should be a dds file, 32x32 pixels in size, with a black icon over a transparent background
+	The background image will be set automatically based on skill specialization. If no specialization is set, 
+	the background will be grey in color. 
+	
+	Place your icon file in "/Icons/YourMod/iconName.dds", then refer to this path when registering your skill. 
+
+
+
+Step 2: include/require skill module:
+
+	Use 'include' if you want the skill module to be optional, otherwise use 'require'. ]
+	At the top of each lua file that calls the skill module:
+	
+	local skillModule = include("OtherSkills.skillModule")
+		or
+	local skillModule = require("OtherSkills.skillModule")	
+	
+	If you use 'include', you need to check if the module exists before using it each time. 
+
+E.g:
+
+	if skillModule then
+		skillModule.registerSkill("My_Skill") 
+			--will only call the function if skillModule exists
+	end
+		
+	local skillVal = skillModule and skillModule.getSkill("MySkill").value or 50
+		--if skillModule not installed, default skillVal to 50
+
+		
+Step 3: Register the skill:
+
+	Call registerSkill(id, skill) within the "OtherSkills:Ready" event.
+	registerSkill() will add the skill the first time and ensure it is active from then on.
+	Without registerSkill(), skills are deactivated on game-load, so if your mod is uninstalled, your 
+	skill will automatically be deactivated as well.
+	
+	All fields are optional but you probably want a name, icon, starting value and description. 
+	- If you want leveling your skill to also level up the player, set a governing attribute. 
+	- If you want classes with a given specialization to gain 25% more experience for that skill, set a specialization
+	- if you want to add the skill but have it inactive by default, set active to false
+
+	Example:
+		local function onSkillReady()
+			skillModule.registerSkill("skill_id", 
+			{	name 			=		"Skill Name", 							 	--default: skill id
+				value			= 		5,											--default: 1
+				progress		=		0, 											--default: 0
+				lvlCap			=		200, 										--default: 100	
+				icon 			=		"Icons/mod/skill_icon.dds", 				--default: a circle icon
+				attribute 		=		tes3.attribute.strength,					--optional
+				description 	= 		"Here is a description of the skill.",		--optional
+				specialization 	= 		tes3.specialization.magic,					--optional. Icon background is gray if none set
+				active			=		"active"									--defaults to "active"
+				}
+			)
+		end			
+		event.register("OtherSkills:Ready", onSkillReady)
+
+			
+Step 4: Use your skill:
+
+	Use getSkill(id) to retrieve and use your skill, like so:
+
+	local skillVal = skillModule.getSkill("MySkill").value
+	local actionChance = math.random * skillVal --chance to perform action based on skill
+	
+	
+Step 5: Increment skill
+
+	When you perform an action with your custom skill, that skill should gain experience. Use incrementSkill() to do this:
+	skillModule.incrementSkill( "MySkill_ID", {progress = 10} )
+	
+	Note that if your skill has a specialization, if the player's class matches that specialization, the skill will
+	progress by 1.25x the value passed in this function. In the above example, if MySkill had Stealth as the specialization 
+	and the player was an Assassin, performing the skill would progress it by 12.5 instead of 10. 
+	
+	
+	
+Notes:
+
+	Activating/Deactivating your skill:
+	If you want to control when your skill appears in the skills list, you can register it with the skill.active field set.
+	Use a local variable that is set to either "active" or "inactive", and use that in the registerSkill(), so it sets it to the
+	right value whenever you load the game
+	
+	When a skill is inactive, incrementSkill() will not do anything, and the skill won't appear in the Skills List.
+	
+	
+	
+
+	
