@@ -1,6 +1,6 @@
 --[[ framework for adding new skills to a new "Other Skills" section ]]--
 
---When the game loads, check if there are any skills in the json file. 
+--When the game loads, check if there are any skills in the json file.
 --if so, create our "Other Skills" block and insert skills
 --we also want to do this whenever a skill is added to the json file
 --so wrap that up in a function which calls the updateBlock function
@@ -9,20 +9,20 @@ local debug = false
 local function debugMessage(string)
 	if debug then
 		tes3.messageBox(string)
-		mwse.log("[SkillsModule: DEBUG] " .. string)
+		mwse.log("[Skills Module: DEBUG] " .. string)
 	end
 end
 
 --[[
 	Method to print human readable tree of elements to the log file
 ]]--
-local tabCount = tabCount or 0
+local tabCount = 0
 local function printElementTree(e)
 	tabCount = tabCount + 1
 	for i=1, #e.children do
 		local child = e.children[i]
 		local printString = ""
-		for i=1, tabCount do
+		for x=1, tabCount do
 			printString = "  " .. printString
 		end
 		printString = printString .. "- " .. child.name .. ", ID: " .. child.id
@@ -177,10 +177,10 @@ this.updateSkillList = function ()
 				skillBlock.borderRight = 5
 				skillBlock.autoHeight = true
 				
-				skillLabel = skillBlock:createLabel({ id=tes3ui.registerID("OtherSkills:skillLabel"), text = skill.name })
+				local skillLabel = skillBlock:createLabel({ id=tes3ui.registerID("OtherSkills:skillLabel"), text = skill.name })
 				skillLabel.layoutOriginFractionX = 0.0
 				
-				skillLevel = skillBlock:createLabel({ id=tes3ui.registerID("OtherSkills:skillValue"), text = tostring(skill.value) })
+				local skillLevel = skillBlock:createLabel({ id=tes3ui.registerID("OtherSkills:skillValue"), text = tostring(skill.value) })
 				skillLevel.layoutOriginFractionX = 1.0
 				
 				--Create skill Tooltip
@@ -188,7 +188,6 @@ this.updateSkillList = function ()
 			end
 		end	
 	end
-	local mainMenu = tes3ui.findMenu(tes3ui.registerID("MenuStat"))
 	mainMenu:updateLayout()
 end
 
@@ -241,9 +240,9 @@ local function onLoaded(e)
 		val.active = false
 	end
 
-	this.updateSkillList()
+    this.updateSkillList()
+    mwse.log("[Skills Module: INFO] Skills loaded successfully")
 	event.trigger("OtherSkills:Ready")
-	mwse.log("[SkillsModule INFO] OtherSkills.Common loaded successfully")
 end
 
 --register events

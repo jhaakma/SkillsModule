@@ -2,8 +2,10 @@
 
 local common = include("OtherSkills.common")
 local this = {}
-local skillObject = {}
 
+this.version = 1.4
+
+mwse.log("[Skills Module] Initialised version %s", this.version)
 --[[
 	@id : id of the skill to update
 	@skillVals : table of values to update. Whatever fields are included will be changed to the values in the table
@@ -11,19 +13,25 @@ local skillObject = {}
 	E.g to change the name and description of a skill:
 		updateSkill ( "MySkill_ID", { name = "My Skill", description = "This is a new skill description" } )
 ]]--
+local validUpdateFields = {
+    name = true,
+    lvlCap = true,
+    icon = true,
+    description = true,
+    specialization = true,
+    active = true,	
+}
 function this.updateSkill(id, skillVals)
 	if common.otherSkills[id] then
-		--if field was included, set current field to it
-		for i,val in pairs(skillVals) do
-			if val then
-				common.otherSkills[id][i] = val
-			end
-		end
+        for key, val  in pairs(skillVals) do
+            if validUpdateFields[key] then
+                common.otherSkills[id][key] = val
+            end
+        end
+        common.updateSkillList()
 	else
-		mwse.log("[SkillsModule ERROR] Skill %s does not exist", id)
-		return
+		mwse.log("[Skills Module: ERROR] Skill %s does not exist", id)
 	end
-	common.updateSkillList()
 end
 
 --[[
@@ -41,79 +49,86 @@ end
 ]]--
 function this.incrementSkill(id, skillVals)
 
-	if not id then 
-		mwse.log("[SkillsModule ERROR] incrementSKill: no id provided")
-	end
-
-	
 	if not skillVals then
 		--default to 10 experience per "action"
 		skillVals = {progress = 10}
 	end
 
-	--25% faster for specialization skill
-	local playerSpecialization = tes3.player.object.class.specialization
-	if skillVals.progress and playerSpecialization == common.otherSkills[id].specialization then
-		skillVals.progress = skillVals.progress * 1.25
-	end
-	
+
+
 	if not common.otherSkills[id] then
-		mwse.log("[SkillsModule ERROR] Skill %s does not exist", id)
+		mwse.log("[Skills Module: ERROR] Skill %s does not exist", id)
 		return
 	elseif common.otherSkills[id].active ~= "active" then
 		--Skill is not active, don't increment
 		return
-	else
-		--if field was included, add it to current field value
-		common.otherSkills[id].value 	= skillVals.value 	 and ( common.otherSkills[id].value 	+ skillVals.value 	 ) or common.otherSkills[id].value 
-		common.otherSkills[id].progress = skillVals.progress and ( common.otherSkills[id].progress  + skillVals.progress ) or common.otherSkills[id].progress 
-		
+    else
+        --25% faster for specialization skill
+        local playerSpecialization = tes3.player.object.class.specialization
+        if 
+            skillVals.progress 
+            and 
+            playerSpecialization == 
+            common.otherSkills[id].specialization 
+        then
+            skillVals.progress = skillVals.progress * 1.25
+        end
+
+        --if field was included, add it to current field value
+        if skillVals.value  then
+            mwse.log("Incrementing by %s", skillVals.value)
+            common.otherSkills[id].value = common.otherSkills[id].value + skillVals.value
+            mwse.log("New value = %s", common.otherSkills[id].value)
+        end
+        if skillVals.progress then
+            common.otherSkills[id].progress = common.otherSkills[id].progress  + skillVals.progress
+        end
 		--Handle skill raises
 		while common.otherSkills[id].progress >= 100 do
 			if common.otherSkills[id].value < common.otherSkills[id].lvlCap then
-				common.otherSkills[id].progress = common.otherSkills[id].progress - 100
+				common.otherSkills[id].progress = 0
 				common.otherSkills[id].value = common.otherSkills[id].value + 1
-				mwscript.playSound{reference=player, sound="skillraise"}
+				mwscript.playSound{reference= tes3.player, sound="skillraise"}
 				local message = string.format( tes3.findGMST(tes3.gmst.sNotifyMessage39).value, common.otherSkills[id].name, common.otherSkills[id].value ) 
-				tes3.messageBox( message )--"Your %s skill increased to %d."
-				
-				
-				--Handle governing attribute and levelling
+                tes3.messageBox( message )--"Your %s skill increased to %d."
+
+				--Handle governing attribute
 				if common.otherSkills[id].attribute then	
 					local adjustedAttribute = common.otherSkills[id].attribute + 1
 					tes3.mobilePlayer.levelupsPerAttribute[ adjustedAttribute ] = tes3.mobilePlayer.levelupsPerAttribute[ adjustedAttribute ] + 1
-					tes3.mobilePlayer.levelUpProgress = tes3.mobilePlayer.levelUpProgress + 1
-					if tes3.mobilePlayer.levelUpProgress >= 10 then
-						tes3.messageBox(tes3.findGMST(tes3.gmst.sLevelUpMsg).value)
-					end
 				end
-			else	
+			else
 				--Level cap reached
 				common.otherSkills[id].value = common.otherSkills[id].lvlCap
 				common.otherSkills[id].progress = 0
 			end
 		end
 	end
-	common.updateSkillList()
+	common.updateSkillList() 
 end
 
 --Clones and adds functions to skill
 local function createSkillObject(skill)
 	--Clone table and add functions to return to player
+    local skillObject = {}
+    local meta = {}
+    setmetatable(skillObject, meta)
+    function meta.__index(_, key)
+        return skill[key]
+    end
+
+	function skillObject:levelUpSkill (value)
+		this.incrementSkill(self.id, {value = value})
+	end
+    function skillObject:progressSkill(value)
+		this.incrementSkill( self.id, {progress = value} ) 
+	end
 	
-	for id, value in pairs(skill) do
-		skillObject[id] = value
-	end
-	function skillObject.incrementSkill (skillVals)
-		this.incrementSkill(skill.id, skillVals)
-	end
-	function skillObject.progressSkill(value)
-		this.incrementSkill( skill.id, {progress = value} ) 
-	end
-	
-	function skillObject.updateSkill(skillVals)
-		this.updateSkill(skill.id, skillVals)
-	end		
+	function skillObject:updateSkill(skillVals)
+		this.updateSkill(self.id, skillVals)
+    end		
+
+    
 	return skillObject
 end
 
@@ -131,11 +146,11 @@ end
 function this.registerSkill(id, skill)
 
 	if not id then 
-		mwse.log("[SkillsModule ERROR] registerSkill needs at least an id")
+		mwse.log("[Skills Module: ERROR] registerSkill needs at least an id")
 		return
 	end
 	if not common.otherSkills then
-		mwse.log("[SkillsModule ERROR] Skills table not loaded - trigger register using event 'OtherSkills:Ready'")
+		mwse.log("[Skills Module: ERROR] Skills table not loaded - trigger register using event 'OtherSkills:Ready'")
 		return
 	end	
 	
@@ -147,7 +162,7 @@ function this.registerSkill(id, skill)
 		skill = skill or {}
 		skill.id				= id
 		skill.name 				= skill.name 				or id
-		skill.value 			= math.floor(skill.value) 	or 5
+		skill.value 			= skill.value and math.floor(skill.value) 	or 5
 		skill.base				= skill.value
 		skill.current			= skill.value
 		skill.progress 			= skill.progress 			or 0
@@ -158,13 +173,10 @@ function this.registerSkill(id, skill)
 		skill.active		 	= skill.active 				or "active"			
 		--Store just the data on player ref
 		common.otherSkills[id] 	= skill
-		
-		
 	end
 	common.updateSkillList()
-	mwse.log("[SkillsModule INFO] Registered skill %s with active flag set to: %s", skill.name, common.otherSkills[id].active )
-	local skillObject = createSkillObject(skill)
-	return skillObject
+	mwse.log("[Skills Module INFO] Registered skill %s with active flag set to: %s", skill.name, common.otherSkills[id].active )
+	return common.otherSkills[id]
 
 end
 

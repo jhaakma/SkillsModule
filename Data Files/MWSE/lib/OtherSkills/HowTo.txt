@@ -45,16 +45,28 @@ Step 3: Register the skill:
 
 	Example:
 		local function onSkillReady()
-			skillModule.registerSkill("skill_id", 
-			{	name 			=		"Skill Name", 							 	--default: skill id
-				value			= 		5,											--default: 1
-				progress		=		0, 											--default: 0
-				lvlCap			=		200, 										--default: 100	
-				icon 			=		"Icons/mod/skill_icon.dds", 				--default: a circle icon
-				attribute 		=		tes3.attribute.strength,					--optional
-				description 	= 		"Here is a description of the skill.",		--optional
-				specialization 	= 		tes3.specialization.magic,					--optional. Icon background is gray if none set
-				active			=		"active"									--defaults to "active"
+			skillModule.registerSkill(
+				"skill_id", 
+				{	name 			=		"Skill Name", 							 	--default: skill id
+					value			= 		5,											--default: 1
+					progress		=		0, 											--default: 0
+					lvlCap			=		200, 										--default: 100	
+					icon 			=		"Icons/mod/skill_icon.dds", 				--default: a circle icon
+					attribute 		=		tes3.attribute.strength,					--optional
+					description 	= 		"Here is a description of the skill.",		--optional
+					specialization 	= 		tes3.specialization.magic,					--optional. Icon background is gray if none set
+					active			=		"active"									--defaults to "active"
+				}
+			)
+		   skillModule.registerSkill(
+				"Ashfall:Cooking", 
+				{    
+					name = "Cooking", 
+					icon = "Icons/ashfall/cooking.dds",
+					value = this.skillStartValue,
+					attribute = tes3.attribute.intelligence,
+					description = "The cooking skill determines your effectiveness at cooking meals. The higher your cooking skill, the higher the nutritional value of cooked meats and vegetables, and the stronger the buffs given by stews. A higher cooking skill also increases the time before food will burn on a grill.",
+					specialization = tes3.specialization.magic
 				}
 			)
 		end			
@@ -65,14 +77,19 @@ Step 4: Use your skill:
 
 	Use getSkill(id) to retrieve and use your skill, like so:
 
-	local skillVal = skillModule.getSkill("MySkill").value
-	local actionChance = math.random * skillVal --chance to perform action based on skill
+		local skill = skillModule.getSkill("MySkill")
+		
+		local result = 10 * skill.value
 	
-	
-Step 5: Increment skill
+Step 5: Progress skill
 
 	When you perform an action with your custom skill, that skill should gain experience. Use incrementSkill() to do this:
-	skillModule.incrementSkill( "MySkill_ID", {progress = 10} )
+		
+		local skill = skillModule.getSkill("MySkill")
+		skill:progressSkill(10)
+	
+	You can level up your skill directly like so:
+		skill:levelUpSkill()
 	
 	Note that if your skill has a specialization, if the player's class matches that specialization, the skill will
 	progress by 1.25x the value passed in this function. In the above example, if MySkill had Stealth as the specialization 
@@ -88,7 +105,6 @@ Notes:
 	right value whenever you load the game
 	
 	When a skill is inactive, incrementSkill() will not do anything, and the skill won't appear in the Skills List.
-	
 	
 	
 
