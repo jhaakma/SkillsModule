@@ -99,6 +99,9 @@ local function createBottomBlock(parent)
     return bottomBlock
 end
 
+---comment
+---@param parent tes3uiElement
+---@param skill SkillsModule.Skill
 local function createProgressBar(parent, skill)
     local progressLabel = parent:createLabel({
         id = tes3ui.registerID("OtherSkills:ttProgressLabel"),
@@ -119,10 +122,12 @@ local function createSkillTooltip(skill)
     --debugMessage("Creating skills list")
     local tooltip = tes3ui.createTooltipMenu()
     local outerBlock = createOuterBlock(tooltip)
-    local topBlock = createTopBlock(outerBlock)
-    createIcon(topBlock, skill)
-    local topRightBlock = createTopRightBlock(outerBlock)
-    createSkillLabel(topRightBlock, skill)
+    do
+        local topBlock = createTopBlock(outerBlock)
+        createIcon(topBlock, skill)
+        local topRightBlock = createTopRightBlock(topBlock)
+        createSkillLabel(topRightBlock, skill)
+    end
     local midBlock = createMidBlock(outerBlock)
     createDescriptionLabel(midBlock, skill)
     local bottomBlock = createBottomBlock(outerBlock)
@@ -154,19 +159,14 @@ local function createSkillsList(parentSkillBlock)
 end
 
 
---[[
-    Refreshes the skills list in the stats menu whenver values change
-    E.g on skill increase or adding new skills
-]]
+---Refreshes the skills list in the stats menu whenever values change
+---E.g on skill increase or adding new skills
 ---@param e uiActivatedEventData
 UI.updateSkillList = function(e)
+    local mainMenu = tes3ui.findMenu(tes3ui.registerID("MenuStatReview"))
+        or tes3ui.findMenu(tes3ui.registerID("MenuStat"))
+    if not (mainMenu and mainMenu.visible) then return end
     logger:debug("Updating skill list")
-    local mainMenu = tes3ui.findMenu(tes3ui.registerID("MenuStat")
-        or tes3ui.registerID("MenuStatReview"))
-    if not mainMenu then
-        logger:warn("No main menu element")
-        return
-    end
     local skillsListBlock = mainMenu:findChild("OtherSkills:skillsListBlock")
     local outerSkillsBlock = mainMenu:findChild("OtherSkills:outerSkillsBlock")
     if not (skillsListBlock and outerSkillsBlock) then
@@ -179,8 +179,9 @@ UI.updateSkillList = function(e)
         skillsListBlock = mainMenu:findChild("OtherSkills:skillsListBlock")
         outerSkillsBlock = mainMenu:findChild("OtherSkills:outerSkillsBlock")
     end
-
-    if table.size(Skill.getAll()) == 0 then
+    ---@type SkillsModule.Skill[]
+    local skills = Skill.getSorted()
+    if #skills == 0 then
         logger:warn("No skills registered")
         outerSkillsBlock.autoHeight = false
         outerSkillsBlock.height = 0
@@ -188,27 +189,27 @@ UI.updateSkillList = function(e)
     end
     --skills found, recreating skill list
     skillsListBlock:destroyChildren()
-    for _, skill in pairs(Skill.getAll()) do
-        if skill.active ~= "active" then
+    for _, skill in ipairs(skills) do
+        if not skill:isActive() then
             logger:warn("- skill %s not active", skill.id)
         else
             logger:debug("- skill %s", skill.id)
             outerSkillsBlock.autoHeight = true
             local skillsBlockID = "OtherSkills:skillBlock_" .. skill.id
             local skillBlock = skillsListBlock:createBlock({ id = skillsBlockID })
-            skillBlock.layoutWidthFraction = 1.0
+            skillBlock.widthProportional = 1.0
             skillBlock.flowDirection = "left_to_right"
             skillBlock.borderLeft = 10
             skillBlock.borderRight = 5
             skillBlock.autoHeight = true
 
             local skillLabel = skillBlock:createLabel({ id = "OtherSkills:skillLabel", text = skill.name })
-            skillLabel.layoutOriginFractionX = 0.0
+            skillLabel.absolutePosAlignX = 0.0
 
             local skillLevel = skillBlock:createLabel({ id = "OtherSkills:skillValue", text = tostring(skill.current) })
 
             --Change color based on fortify or drain
-            local fortifyEffect = SkillModifier.calculateFortifyEffect(skill.id)
+            local fortifyEffect = SkillModifier.calculateFortifyEffect(skill)
             if fortifyEffect then
                 if fortifyEffect > 0 then
                     skillLevel.color = tes3ui.getPalette("positive_color")
@@ -217,7 +218,7 @@ UI.updateSkillList = function(e)
                 end
             end
 
-            skillLevel.layoutOriginFractionX = 1.0
+            skillLevel.absolutePosAlignX = 1.0
 
             --Create skill Tooltip
             skillBlock:register("help", function() createSkillTooltip(skill) end)
@@ -226,9 +227,93 @@ UI.updateSkillList = function(e)
     mainMenu:updateLayout()
 end
 
+---@param menu tes3uiElement
+function UI.updateClassMenuCustomSkills(menu)
+
+    local customSkillsBlock = menu:findChild("SkillsModule_OtherSkillsBlock")
+    --First clear any existing content
+    if customSkillsBlock then
+        customSkillsBlock:destroyChildren()
+    else
+        customSkillsBlock = menu:createBlock{ id = "SkillsModule_OtherSkillsBlock"}
+    end
+    customSkillsBlock.widthProportional = 1
+    customSkillsBlock.autoHeight = true
+    customSkillsBlock.flowDirection = "top_to_bottom"
+    customSkillsBlock.paddingAllSides = 4
+    customSkillsBlock.minHeight = 80
+    --Don't repopulate if nothing to add
+    local class = tes3.player.object.class
+    local classModifiers = SkillModifier.getClassModifiers(class.id)
+    local header = customSkillsBlock:createLabel{
+        id = "SkillsModule_OtherSkillsHeader",
+        text = "Other Skills"
+    }
+    header.color = tes3ui.getPalette("header_color")
+
+    --Sort skills into 3 columns
+    local columnBlock = customSkillsBlock:createBlock{ id = "SkillsModule_OtherSkillsColumnBlock" }
+    columnBlock.flowDirection = "left_to_right"
+    columnBlock.widthProportional = 1.0
+    columnBlock.autoHeight = true
+    local columns = {}
+    for i = 1, 3 do
+        local column = columnBlock:createBlock{ id = "SkillsModule_OtherSkillsColumn_" .. i }
+        column.widthProportional = 1.0
+        column.autoHeight = true
+        column.flowDirection = "top_to_bottom"
+        table.insert(columns, column)
+    end
+
+    local colIndex = 1
+    table.sort(classModifiers, function(a, b) return a.name < b.name end)
+    for skillId, amount in pairs(classModifiers) do
+        local skill = Skill.get(skillId)
+        if skill then
+            --get one of the 3 columns
+            logger:debug("Adding custom skill %s to column %d", skill.id, colIndex)
+            local column = columns[colIndex]
+            colIndex = (colIndex % 3) + 1
+            local plusOrMinus = amount > 0 and "+" or "-"
+            local text = string.format("%s %s %d", skill.name, plusOrMinus, math.abs(amount))
+            column:createLabel{ text = text }
+            logger:debug("Adding custom skill %s to class menu", skill.id)
+        end
+    end
+
+    local placeBeforeBlock = menu:findChild("MenuChooseClass_Backbutton").parent
+    menu:getContentElement():reorderChildren(placeBeforeBlock, customSkillsBlock, 1)
+    menu:updateLayout()
+end
+
+---@param e uiRefreshedEventData
+function UI.addSkillsToClassMenu(e)
+    local menu = e.element
+    if not menu.id == "MenuChooseClass" then return end
+    local classList = e.element:findChild("MenuChooseClass_ClassScroll")
+    if not classList then
+        logger:warn("Class list not found")
+        return
+    end
+
+    if not Skill.hasActiveClassModifiers() then
+        logger:debug("No active class modifiers")
+        return
+    end
+
+    logger:debug("Initialising custom skills in class menu")
+    classList = classList:getContentElement()
+    for _, button in ipairs(classList.children) do
+        button:registerAfter("mouseClick", function()
+            UI.updateClassMenuCustomSkills(menu)
+        end)
+    end
+    UI.updateClassMenuCustomSkills(menu)
+end
 
 
-
+---@TODO Finish NPC skills and training
+---@private Unfinished
 ---@param newSkill SkillsModule.Skill
 function UI.replaceTrainingSkill(newSkill)
     local trainingMenu = tes3ui.findMenu("MenuServiceTraining")
@@ -261,7 +346,5 @@ function UI.replaceTrainingSkill(newSkill)
         serviceList.widget:contentsChanged()
     end
 end
-
-
 
 return UI
