@@ -19,7 +19,7 @@ local SkillsModule = {
 ---@param params SkillsModule.Skill.constructorParams
 ---@return SkillsModule.Skill
 function SkillsModule.registerSkill(params)
-    params.apiVersion = params.apiVersion or 2
+    params.apiVersion = 2
     return Skill:new(params)
 end
 
@@ -47,13 +47,14 @@ function SkillsModule.registerFortifyEffect(params)
     SkillModifier.registerFortifyEffect(params)
 end
 
+---Get a skill by its id
+function SkillsModule.getSkill(id)
+    return Skill.get(id)
+end
+
 ---Log skill ids in alphabetical order to the console
 function SkillsModule.listIds()
-    local sortedSkills = {}
-    for _, skill in pairs(Skill.getAll()) do
-        table.insert(sortedSkills, skill)
-    end
-    table.sort(sortedSkills, function(a, b) return a.name < b.name end)
+    local sortedSkills = Skill.getSorted()
     for _, skill in ipairs(sortedSkills) do
         tes3ui.log(skill)
         logger:info(skill)
@@ -67,8 +68,16 @@ event.register("loaded", function(e)
     --Trigger deprecated ready event
     event.trigger("OtherSkills:Ready")
 end)
-event.register("menuEnter", UI.updateSkillList)
+
 event.register("SkillsModule:UpdateSkillsList", UI.updateSkillList)
+--entering stat menu
+event.register("menuEnter", UI.updateSkillList)
+--entering stat review menu
+event.register("uiActivated", UI.updateSkillList, { filter = "MenuStatReview" } )
+--Scroll pane updated
+event.register("uiRefreshed", UI.updateSkillList, {filter = "MenuStat_scroll_pane" } )
+--Choose class menu
+event.register("uiActivated", UI.addSkillsToClassMenu, { filter = "MenuChooseClass", priority = 150 })
 event.register("UIEXP:sandboxConsole", function(e)
     e.sandbox.SkillsModule = SkillsModule
 end)

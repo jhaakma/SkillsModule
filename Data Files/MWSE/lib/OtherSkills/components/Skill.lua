@@ -6,22 +6,18 @@ local logger = util.createLogger("Skill")
 ---@class SkillsModule.Skill.constructorParams
 ---@field id string The unique ID of the skill
 ---@field name string The name of the skill
----@field lvlCap? number `Default: 100` The maximum value of the skill
+---@field maxLevel? number `Default: 100` The maximum value of the skill. The maximum value of the skill. Set to -1 for no cap
 ---@field icon? string `Default: "Icons/OtherSkills/default.dds"` The path to the icon of the skill
 ---@field description? string The description of the skill
 ---@field specialization? tes3.specialization The specialization of the skill
 ---@field value? number `Default: 5` The starting value of the skill
----@field active? SkillsModule.Skill.active Whether the skill is active or not
----@field apiVersion? number `Default: 1` The API version of the skill
+---@field apiVersion? number The API Version of the skill. This is automatically set depending on which API you use, so you don't need to provide this.
 
 ---@alias SkillsModule.Skill.active
 ---| "'active'" The skill is active
 ---| "'inactive'" The skill is inactive
 
 local SPECIALIZATION_MULTI = 1.25
-local ALIASES = {
-    base = "value"
-}
 --Keys of values that are stored on player.data
 local PERSISTENT_KEYS = {
     value = true,
@@ -29,29 +25,37 @@ local PERSISTENT_KEYS = {
     active = true,
 }
 
+---The skill data stored on the reference
 ---@class SkillsModule.Skill.data
----@field value number (Deprecated, use current) The current value of the skill
+---@field value number The raw value of the skill
 ---@field progress number The current progress of the skill
 ---@field active SkillsModule.Skill.active Whether the skill is active or not
 ---@field attribute? tes3.attribute (Deprecated) The attribute of the skill
 ---@field apiVersion number The API version of the skill
 
----@class SkillsModule.Skill : SkillsModule.Skill.data
+---@class SkillsModule.Skill : SkillsModule.Skill.constructorParams
 ---@field id string The unique ID of the skill
 ---@field name string The name of the skill
----@field lvlCap number The maximum value of the skill
+---@field private raw number The raw value stored on the reference.data. This should only ever be modified by the skill itself
+---@field base number The base value of the skill, calculated by adding all base modifiers to the raw value
+---@field current number The current value of the skill, calculated by adding all fortify/drain effects to the base value
+---@field maxLevel number The maximum value of the skill. If set to -1, there is no cap
 ---@field icon string The path to the icon of the skill
 ---@field description string The description of the skill
 ---@field specialization tes3.specialization The specialization of the skill
----@field apiVersion number The API version of the skill
----@field persistentDefaults SkillsModule.Skill.data Data to be added to player.data.otherSkills
+---@field private apiVersion number The API version of the skill
+---@field private persistentDefaults SkillsModule.Skill.data Data to be added to player.data.otherSkills
 ---@field private owner? tes3reference The NPC the skill is attached to. Defaults to the player
+---@field private active SkillsModule.Skill.active Whether the skill is active or not
 local Skill = {
+    ---@deprecated Use skill.base or skill.current
+    value = nil,
+
     DEFAULT_VALUES = {
         value = 5,
         progress = 0,
         active = "active",
-        lvlCap = 100,
+        maxLevel = 100,
         icon = "Icons/OtherSkills/default.dds",
         description = "",
         apiVersion = 1
@@ -60,6 +64,7 @@ local Skill = {
 
 local registeredSkills = {}
 
+--- Constructor
 ---@param e SkillsModule.Skill.constructorParams
 ---@return SkillsModule.Skill|nil
 function Skill:new(e)
@@ -80,20 +85,23 @@ function Skill:new(e)
     end
     ---@type SkillsModule.Skill
     local skill = setmetatable({}, {
+        ---@diagnostic disable: invisible
         ---@param tSkill SkillsModule.Skill
         __index = function(tSkill, key)
-            --Handle aliases, like using "value" or "base" to get the current value
-            if ALIASES[key] then
-                key = ALIASES[key]
+            if key == "base" then
+                return tSkill:getBase()
             end
-            if key == "current" then
+            if key == "value" or key == "current" then
                 return tSkill:getCurrent()
             end
             --Get from class
             if Skill[key] ~= nil then
                 return Skill[key]
             end
-            --Get from player ref
+            --"raw" points to the data.value on the reference
+            if key == "raw" then
+                key = "value"
+            end
             if PERSISTENT_KEYS[key] then
                 tSkill:initialiseData()
                 local v = config.playerData[params.id][key]
@@ -103,28 +111,42 @@ function Skill:new(e)
             return params[key]
         end,
         __newindex = function(tSkill, key, val)
-            if ALIASES[key] then
-                key = ALIASES[key]
-            end
-            --if "current", then modify base by difference between current and new current
-            if key == "current" then
-                local current = tSkill:getCurrent()
-                local diff = val - current
-                tSkill.value = tSkill.value + diff
+            --Legacy: if ""base", then modify the raw value by the difference between the base and the new base
+            if key == "base" then
+                local base = tSkill:getBase()
+                local diff = val - base
+                tSkill.raw = tSkill.raw + diff
                 return
             end
+            --if value" or "current", then modify raw by difference between current and new current
+            if key == "value" or key == "current" then
+                local current = tSkill:getCurrent()
+                local diff = val - current
+                local previous = tSkill:getBase()
+                tSkill.raw = tSkill.raw + diff
+                return
+            end
+            -- "raw" points to the data.value on the reference
+            if key == "raw" then
+                key = "value"
+            end
+            -- Get from reference.data
             if PERSISTENT_KEYS[key] then
                 tSkill:initialiseData()
                 local skillData = config.playerData[params.id]
                 skillData[key] = val
             end
             params[key] = val
-            event.trigger("SkillsModule:UpdateSkillsList")
+            --Update UI
+            if tes3ui.menuMode() then
+                event.trigger("SkillsModule:UpdateSkillsList")
+            end
         end,
         __tostring = function (t)
             mwse.log("tostring")
             return string.format("Skill: %s (%s) v%d", t.name, t.id, t.apiVersion)
         end
+        ---@diagnostic disable: invisible
     })
     registeredSkills[params.id] = skill
     logger:debug("Registered %s", string.format("Skill: %s (%s) v%d", params.name, params.id, params.apiVersion))
@@ -151,18 +173,114 @@ function Skill.getAll(owner)
     return registeredSkills
 end
 
+function Skill.getSorted(owner)
+    local skills = Skill.getAll(owner)
+    local sortedSkills = table.values(skills)
+    table.sort(sortedSkills, function(a, b) return a.name < b.name end)
+    return sortedSkills
+end
+
+function Skill.hasActiveSkills()
+    local skills = Skill.getAll()
+    for _, skill in pairs(skills) do
+        if skill:isActive() then
+            return true
+        end
+    end
+    return false
+end
+
+function Skill.hasActiveClassModifiers()
+    local classIDs = {}
+    for _, class in ipairs(tes3.dataHandler.nonDynamicData.classes) do
+        classIDs[class.id:lower()] = true
+    end
+    for skillId, classModifiers in pairs(SkillModifier.classModifiers) do
+        local skill = Skill.get(skillId)
+        if skill and skill:isActive() then
+            for classId, _ in pairs(classModifiers) do
+                if classIDs[classId] then
+                    return true
+                end
+            end
+        end
+    end
+end
 
 ----------------------------------------------
--- Instance methods
+-- Instance Methods
 ----------------------------------------------
 
--- Getters for private fields
 
+---Exercise the skill and level up if applicable
+---@param progressAmount number The amount of progress to add to the skill
+---@return boolean Whether the skill levelled up or not
+function Skill:exercise(progressAmount)
+    --Add specialization bonus
+    if self.specialization == tes3.player.object.class.specialization then
+        progressAmount = progressAmount * SPECIALIZATION_MULTI
+    end
+    --Add progress
+    self.progress = self.progress + progressAmount
+    --Level up if needed
+    if self.progress >= self:getProgressRequirement() then
+        self:levelUp()
+        return true
+    end
+    return false
+end
+
+---Level up the skill
+---@param numLevels number|nil `Default: 1` The number of levels to level up the skill
+function Skill:levelUp(numLevels)
+    numLevels = numLevels or 1
+    if self.maxLevel > 0 and self.base >= self.maxLevel then
+        self.base = self.maxLevel
+        self.progress = 0
+        return
+    end
+    self.raw = self.raw + numLevels
+    self.progress = 0
+    tes3.playSound{ reference = tes3.player, sound = "skillraise" }
+    local message = string.format( tes3.findGMST(tes3.gmst.sNotifyMessage39).value, self.name, self.base )
+    tes3.messageBox( message )--"Your %s skill increased to %d."
+    logger:debug("Leveled up %s skill to %s", self.name, self.base)
+    self:triggerEvent("SkillsModule:LevelUp", { skill = self, numLevels = numLevels })
+end
+
+function Skill:getProgressAsPercentage()
+    local progress = self.progress
+    local progressRequirement = self:getProgressRequirement()
+    return math.floor((progress / progressRequirement) * 100)
+end
+
+---@return boolean Whether the skill is active or not
+function Skill:isActive()
+    return self.active == "active"
+end
+
+---@param isActive boolean
+function Skill:setActive(isActive)
+    self.active = isActive and "active" or "inactive"
+    self:triggerEvent("SkillsModule:SkillActiveChanged", { skill = self, isActive = isActive })
+end
+
+function Skill:triggerEvent(eventName, params)
+    event.trigger(eventName, params, { filter = self.id })
+end
+
+---------------------------------------
+-- Private functions
+---------------------------------------
+
+
+---@private
 ---@return tes3reference
 function Skill:getOwner()
     return Skill.owner or tes3.player
 end
 
+---@private
 ---@return table<string, SkillsModule.Skill.data>|nil
 function Skill:getOwnerData()
     local owner = self:getOwner()
@@ -174,83 +292,49 @@ function Skill:getOwnerData()
     return owner.data.otherSkills
 end
 
+---@private
+---@param skillData SkillsModule.Skill.data
+---@param newApiVersion number
+function Skill:scaleProgressForV2(skillData, newApiVersion)
+    local currentProgress = skillData.progress or 0
+    local currentRatio = currentProgress / 100
+    local currentSkillLevel = skillData.value
+    local progressRequirement = (1 + currentSkillLevel) * tes3.findGMST("fMiscSkillBonus").value
+    local newProgress = math.floor(progressRequirement * currentRatio)
+    skillData.progress = newProgress
+    logger:warn("%s skill has been updated to API version %s, progress has been scaled to %s",
+        self.name, newApiVersion, newProgress)
+end
+
+---Initialise the persistent data on the reference.data table
+---@private
 function Skill:initialiseData()
     local ownerData = self:getOwnerData()
     if not ownerData then
+        logger:error("Unable to initialise data for %s, ownerData is nil", self.name)
         return
     end
     if ownerData[self.id] == nil then
+        --initialise default values to player.data
         ownerData[self.id] = table.copy(self.persistentDefaults)
-    else
-        --If a v1 self is upgraded to a v1, scale the progress to the new progress requirements
-        local currentApiVersion = ownerData[self.id].apiVersion or 1
-        local newApiVersion = self.apiVersion or 1
-        if newApiVersion > 1 and currentApiVersion == 1 then
-            local currentProgress = ownerData[self.id].progress or 0
-            local currentRatio = currentProgress / 100
-            local currentSkillLevel = ownerData[self.id].value
-            local progressRequirement = (1 + currentSkillLevel) * tes3.findGMST("fMiscSkillBonus").value
-            local newProgress = math.floor(progressRequirement * currentRatio)
-            ownerData[self.id].progress = newProgress
-            ownerData[self.id].apiVersion = newApiVersion
-            logger:warn("%s skill has been updated to API version %s, progress has been scaled to %s",
-                self.name, newApiVersion, newProgress)
-        end
-    end
-end
-
---- Calculates the current value of the skill
---- This can also be accessed directly with `skill.current`
-function Skill:getCurrent()
-    logger:debug("Getting current value of %s skill", self.name)
-    --Calculate modifiers and add to base value
-    local value = self.value
-    logger:debug("base value: %s", value)
-    local baseModification = SkillModifier.calculateBaseModification(self.id)
-    logger:debug("modification: %s", baseModification)
-    local fortifyEffect = SkillModifier.calculateFortifyEffect(self.id)
-    logger:debug("fortifyEffect: %s", fortifyEffect)
-    local current = value + baseModification + fortifyEffect
-    logger:debug("Current: %s", current)
-    return math.max(current, 0)
-end
-
-
----Exercise the skill and level up if applicable
----@param progressAmount number The amount of progress to add to the skill
-function Skill:exercise(progressAmount)
-    --Add specialization bonus
-    if self.specialization == tes3.player.object.class.specialization then
-        progressAmount = progressAmount * SPECIALIZATION_MULTI
-    end
-    --Add progress
-    self.progress = self.progress + progressAmount
-    --Level up if needed
-    if self.progress >= self:getProgressRequirement() then
-        self:levelUp()
-    end
-end
-
----Level up the skill
----@param numLevels number|nil `Default: 1` The number of levels to level up the skill
-function Skill:levelUp(numLevels)
-    numLevels = numLevels or 1
-    if self.base >= self.lvlCap then
-        self.base = self.lvlCap
-        self.progress = 0
         return
     end
-    self.base = self.base + numLevels
-    self.progress = 0
-    tes3.playSound{ reference = tes3.player, sound = "skillraise" }
-    local message = string.format( tes3.findGMST(tes3.gmst.sNotifyMessage39).value, self.name, self.base )
-    tes3.messageBox( message )--"Your %s skill increased to %d."
+    ---@type SkillsModule.Skill.data
+    local skillData = ownerData[self.id]
+    local newApiVersion = self.apiVersion or 1
+    local needsUpgradeCheck = skillData.progress > 0
+        and skillData.apiVersion == nil
+    if needsUpgradeCheck then
+        local currentApiVersion = skillData.apiVersion or 1
+        local needsUpgrade = newApiVersion > 1 and currentApiVersion == 1
+        if needsUpgrade then
+            self:scaleProgressForV2(skillData, newApiVersion)
+        end
+    end
+    skillData.apiVersion = newApiVersion
 end
 
-function Skill:setLevel(level)
-    self.base = level
-end
-
+---@private
 function Skill:getProgressRequirement()
     if self.apiVersion == 1 then
         -- Legacy calculation had a flat progression rate
@@ -268,28 +352,43 @@ function Skill:getProgressRequirement()
     logger:error("no api version set")
 end
 
-function Skill:getProgressAsPercentage()
-    local progress = self.progress
-    local progressRequirement = self:getProgressRequirement()
-    return math.floor((progress / progressRequirement) * 100)
+--- Use `skill.base` instead.
+---@private
+function Skill:getBase()
+    return self.raw + SkillModifier.calculateBaseModification(self)
+end
+
+--- Use `skill.current` instead.
+---@private
+function Skill:getCurrent()
+    logger:trace("Getting current value of %s skill", self.name)
+    --Calculate modifiers and add to base value
+    local fortifyEffect = SkillModifier.calculateFortifyEffect(self)
+    logger:trace("fortifyEffect: %s", fortifyEffect)
+    local current = self.base + fortifyEffect
+    logger:trace("Current: %s", current)
+    return math.max(current, 0)
 end
 
 -------------------------------------
 -- Legacy functions
 -------------------------------------
 
+---@deprecated
 function Skill:levelUpSkill(value)
     self:levelUp(value)
 end
 
+---@deprecated
 function Skill:progressSkill(value)
     self:exercise(value)
 end
 
+---@deprecated Skill values can now be modified directly
 function Skill:updateSkill(skillVals)
     local validUpdateFields = {
         name = "string",
-        lvlCap = "number",
+        maxLevel = "number",
         icon = "string",
         description = "string",
         specialization = "number",

@@ -8,7 +8,7 @@ util.loggers = {}
 function util.createLogger(serviceName)
     local logger = MWSELogger.new{
         name = string.format("Skills Module - %s", serviceName),
-        logLevel = "INFO",
+        logLevel = "DEBUG",
         includeTimestamp = true,
     }
     util.loggers[serviceName] = logger
