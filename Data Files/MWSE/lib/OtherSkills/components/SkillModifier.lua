@@ -95,7 +95,13 @@ function SkillModifier.registerBaseModifier(e)
     logger:assert(type(e.skill) == "string", "Must provide a skill id")
     logger:assert(type(e.callback) == "function", "Must provide a requirements function")
     SkillModifier.baseModifiers[e.skill] = SkillModifier.baseModifiers[e.skill] or {}
+    local existingValue = SkillModifier.baseModifiers[e.skill][e.id]
+    if existingValue then
+        logger:warn("Base Modifier for Skill %s with modifier id '%s' already exists. Overwriting value %s with %s",
+            e.skill, e.id, existingValue, e.callback)
+    end
     SkillModifier.baseModifiers[e.skill][e.id] = e.callback
+    logger:debug("Registered base modifier '%s' for skill %s", e.id, e.skill)
 end
 
 --- Register a Class modifier for a skill. This will modify the base amount of the skill
@@ -107,6 +113,11 @@ function SkillModifier.registerClassModifier(e)
     logger:assert(type(e.class) == "string", "Must provide a class id")
     SkillModifier.classModifiers[e.skill] = SkillModifier.classModifiers[e.skill] or {}
     local classId = e.class:lower()
+    local existingValue = SkillModifier.classModifiers[e.skill][classId]
+    if existingValue and existingValue ~= e.amount then
+        logger:warn("Class Modifier for Skill %s and Class %s already exists. Overwriting value %s with %s",
+            e.skill, e.class, existingValue, e.amount)
+    end
     SkillModifier.classModifiers[e.skill][classId] = e.amount
     logger:debug("Registered base modifier for skill %s: %s for class %s",
         e.skill, e.amount, e.class)
@@ -121,6 +132,11 @@ function SkillModifier.registerRaceModifier(e)
     logger:assert(type(e.race) == "string", "Must provide a race id")
     SkillModifier.raceModifiers[e.skill] = SkillModifier.raceModifiers[e.skill] or {}
     local raceId = e.race:lower()
+    local existingValue = SkillModifier.raceModifiers[e.skill][raceId]
+    if existingValue and existingValue ~= e.amount then
+        logger:warn("Race Modifier for Skill %s and Race %s already exists. Overwriting value %s with %s",
+            e.skill, e.race, existingValue, e.amount)
+    end
     SkillModifier.raceModifiers[e.skill][raceId] = e.amount
     logger:debug("Registered base modifier for skill %s: %s for race %s",
         e.skill, e.amount, e.race)
@@ -136,7 +152,13 @@ function SkillModifier.registerFortifyEffect(e)
     logger:assert(type(e.skill) == "string", "Must provide a skill id")
     logger:assert(type(e.callback) == "function", "Must provide a requirements function")
     SkillModifier.fortifyEffects[e.skill] = SkillModifier.fortifyEffects[e.skill] or {}
+    local existingValue = SkillModifier.fortifyEffects[e.skill][e.id]
+    if existingValue then
+        logger:warn("Fortify Effect for Skill %s with modifier id '%s' already exists. Overwriting value %s with %s",
+            e.skill, e.id, existingValue, e.callback)
+    end
     SkillModifier.fortifyEffects[e.skill][e.id] = e.callback
+    logger:debug("Registered fortify effect '%s' for skill %s", e.id, e.skill)
 end
 
 --Returns the total amount of base modification for a skill
