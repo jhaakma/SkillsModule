@@ -4,7 +4,7 @@ description = "A framework for adding custom skills."
 homepage = "https://www.nexusmods.com/morrowind/mods/46034"
 repository = "https://github.com/jhaakma/SkillsModule"
 authors = [ "Merlord",]
-version = "2.0.0"
+version = "2.0.1"
 
 [dependencies]
 assets = [ "MWSE/lib/OtherSkills", "Icons/otherskills",]
