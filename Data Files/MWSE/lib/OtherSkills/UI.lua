@@ -206,19 +206,20 @@ UI.updateSkillList = function(e)
             local skillLabel = skillBlock:createLabel({ id = "OtherSkills:skillLabel", text = skill.name })
             skillLabel.absolutePosAlignX = 0.0
 
-            local skillLevel = skillBlock:createLabel({ id = "OtherSkills:skillValue", text = tostring(skill.current) })
+            local current = string.format("%G", skill.current)
+            local skillValueLabel = skillBlock:createLabel({ id = "OtherSkills:skillValue", text = current })
 
             --Change color based on fortify or drain
             local fortifyEffect = SkillModifier.calculateFortifyEffect(skill)
             if fortifyEffect then
                 if fortifyEffect > 0 then
-                    skillLevel.color = tes3ui.getPalette("positive_color")
+                    skillValueLabel.color = tes3ui.getPalette("positive_color")
                 elseif fortifyEffect < 0 then
-                    skillLevel.color = tes3ui.getPalette("negative_color")
+                    skillValueLabel.color = tes3ui.getPalette("negative_color")
                 end
             end
 
-            skillLevel.absolutePosAlignX = 1.0
+            skillValueLabel.absolutePosAlignX = 1.0
 
             --Create skill Tooltip
             skillBlock:register("help", function() createSkillTooltip(skill) end)

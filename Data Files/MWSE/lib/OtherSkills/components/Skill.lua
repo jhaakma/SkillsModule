@@ -73,6 +73,8 @@ function Skill:new(e)
     local params = table.copy(e)
     --Fill in defaults
     table.copymissing(params, Skill.DEFAULT_VALUES)
+    --Make sure starting value is an integer
+    params.value = math.round(params.value)
     --Validate params
     logger:assert(type(params) == "table", "Skill:new: data must be a table")
     logger:assert(type(params.id) == "string", "Skill:new: data.id is required")
@@ -360,7 +362,7 @@ end
 --- Use `skill.base` instead.
 ---@private
 function Skill:getBase()
-    return self.raw + SkillModifier.calculateBaseModification(self)
+    return math.round(self.raw + SkillModifier.calculateBaseModification(self))
 end
 
 --- Use `skill.current` instead.
@@ -372,7 +374,7 @@ function Skill:getCurrent()
     logger:trace("fortifyEffect: %s", fortifyEffect)
     local current = self.base + fortifyEffect
     logger:trace("Current: %s", current)
-    return math.max(current, 0)
+    return math.round(math.max(current, 0))
 end
 
 -------------------------------------
