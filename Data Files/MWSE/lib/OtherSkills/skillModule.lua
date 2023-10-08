@@ -2,7 +2,24 @@
     THIS CLASS IS DEPRECATED
     Use `local SkillsModule = require("OtherSkills")` instead.
 ]]
---
+
+
+
+---@class SkillsModule.Skill.v1
+---@field id string
+---@field name string
+---@field value number
+---@field base number
+---@field current number
+---@field progress number
+---@field lvlCap number
+---@field icon string
+---@field description string
+---@field specialization tes3.specialization
+---@field active string "active" | "inactive"
+---@field levelUpSkill fun(SkillsModule.Skill.v1, value: number)
+---@field progressSkill fun(SkillsModule.Skill.v1, value: number)
+---@field updateSkill fun(SkillsModule.Skill.v1, skillVals: table)
 
 --Require the new module to ensure any events are triggered
 require("OtherSkills")
@@ -52,7 +69,7 @@ end
 ---@param id string
 ---@param owner? tes3reference
 function this.getSkill(id, owner)
-    return Skill.get(id)
+    return Skill.get(id) --[[@as SkillsModule.Skill.v1]]
 end
 
 ---@deprecated use the `registerSkill` method from `require("SkillsModule")` instead

@@ -1,3 +1,5 @@
+local config = require("OtherSkills.config")
+
 --Provides utility functions for the SkillsModule
 ---@class SkillsModule.Util
 local util = {}
@@ -8,12 +10,11 @@ util.loggers = {}
 function util.createLogger(serviceName)
     local logger = MWSELogger.new{
         name = string.format("Skills Module - %s", serviceName),
-        logLevel = "DEBUG",
+        logLevel = config.mcm.logLevel,
         includeTimestamp = true,
     }
     util.loggers[serviceName] = logger
     return logger
 end
-local logger = util.createLogger("common")
 
 return util

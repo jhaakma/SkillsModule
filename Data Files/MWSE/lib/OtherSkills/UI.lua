@@ -191,7 +191,7 @@ UI.updateSkillList = function(e)
     skillsListBlock:destroyChildren()
     for _, skill in ipairs(skills) do
         if not skill:isActive() then
-            logger:warn("- skill %s not active", skill.id)
+            logger:debug("- skill %s not active", skill.id)
         else
             logger:debug("- skill %s", skill.id)
             outerSkillsBlock.autoHeight = true

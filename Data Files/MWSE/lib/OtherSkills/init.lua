@@ -5,6 +5,7 @@ local SkillModifier = require("OtherSkills.components.SkillModifier")
 local util = require("OtherSkills.util")
 local logger = util.createLogger("SkillsModule")
 local config = require("OtherSkills.config")
+require("OtherSkills.MCM")
 -----------------------------------------------------------
 
 --- Interop file for Skills Module.

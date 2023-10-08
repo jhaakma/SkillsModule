@@ -33,6 +33,8 @@ local PERSISTENT_KEYS = {
 ---@field attribute? tes3.attribute (Deprecated) The attribute of the skill
 ---@field apiVersion number The API version of the skill
 
+
+
 ---@class SkillsModule.Skill : SkillsModule.Skill.constructorParams
 ---@field id string The unique ID of the skill
 ---@field name string The name of the skill
@@ -143,7 +145,6 @@ function Skill:new(e)
             end
         end,
         __tostring = function (t)
-            mwse.log("tostring")
             return string.format("Skill: %s (%s) v%d", t.name, t.id, t.apiVersion)
         end
         ---@diagnostic disable: invisible
@@ -161,6 +162,10 @@ function Skill.get(id, owner)
     local skill = registeredSkills[id]
     Skill.owner = owner
     return skill
+end
+
+function Skill:getApiVersion()
+    return self.apiVersion or 1
 end
 
 ---Get all registered skills
