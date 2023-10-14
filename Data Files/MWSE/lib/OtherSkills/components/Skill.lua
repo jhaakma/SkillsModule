@@ -33,8 +33,6 @@ local PERSISTENT_KEYS = {
 ---@field attribute? tes3.attribute (Deprecated) The attribute of the skill
 ---@field apiVersion? number The API version of the skill
 
-
-
 ---@class SkillsModule.Skill : SkillsModule.Skill.constructorParams
 ---@field id string The unique ID of the skill
 ---@field name string The name of the skill
@@ -219,16 +217,35 @@ end
 ----------------------------------------------
 
 
+
+
 ---Exercise the skill and level up if applicable
 ---@param progressAmount number The amount of progress to add to the skill
 ---@return boolean Whether the skill levelled up or not
 function Skill:exercise(progressAmount)
+    ---@type SkillsModule.exerciseSkillEventData
+    local exerciseSkillEventData = {
+        skill = self,
+        progress = progressAmount,
+        claim = false,
+        block = false,
+    }
+    ---@type SkillsModule.exerciseSkillEventData
+    local payload = event.trigger("SkillsModule:exerciseSkill", exerciseSkillEventData, { filter = self.id })
+    if payload.block then
+        logger:trace("'%s' exercise blocked by event callback", self)
+        return false
+    end
+    progressAmount = payload.progress
+
     --Add specialization bonus
     if self.specialization == tes3.player.object.class.specialization then
         progressAmount = progressAmount * SPECIALIZATION_MULTI
     end
     --Add progress
     self.progress = self.progress + progressAmount
+
+
     --Level up if needed
     if self.progress >= self:getProgressRequirement() then
         self:levelUp()
@@ -239,7 +256,8 @@ end
 
 ---Level up the skill
 ---@param numLevels number|nil `Default: 1` The number of levels to level up the skill
-function Skill:levelUp(numLevels)
+---@param source tes3.skillRaiseSource|nil `Default: tes3.skillRaiseSource.leveling` The source of the skill raise
+function Skill:levelUp(numLevels, source)
     numLevels = numLevels or 1
     if self.maxLevel > 0 and self.base >= self.maxLevel then
         self.base = self.maxLevel
@@ -252,7 +270,18 @@ function Skill:levelUp(numLevels)
     local message = string.format( tes3.findGMST(tes3.gmst.sNotifyMessage39).value, self.name, self.base )
     tes3.messageBox( message )--"Your %s skill increased to %d."
     logger:debug("Leveled up %s skill to %s", self.name, self.base)
-    self:triggerEvent("SkillsModule:LevelUp", { skill = self, numLevels = numLevels })
+
+    ---@type SkillsModule.skillRaisedEventData
+    local eventData = {
+        skill = self,
+        level = self.base,
+        source = source or tes3.skillRaiseSource.leveling,
+        claim = false,
+    }
+    event.trigger("SkillsModule:skillRaised", eventData, { filter = self.id })
+
+    ---Deprecated
+    event.trigger("SkillsModule:LevelUp", { skill = self, numLevels = numLevels }, { filter = self.id })
 end
 
 function Skill:getProgressAsPercentage()
@@ -269,11 +298,12 @@ end
 ---@param isActive boolean
 function Skill:setActive(isActive)
     self.active = isActive and "active" or "inactive"
-    self:triggerEvent("SkillsModule:SkillActiveChanged", { skill = self, isActive = isActive })
-end
-
-function Skill:triggerEvent(eventName, params)
-    event.trigger(eventName, params, { filter = self.id })
+    ---@type SkillsModule.skillActiveChangedEventData
+    local eventData = {
+        skill = self,
+        isActive = isActive,
+    }
+    event.trigger("SkillsModule:SkillActiveChanged", eventData, { filter = self.id })
 end
 
 ---------------------------------------
@@ -309,8 +339,8 @@ function Skill:scaleProgressForV2(skillData, newApiVersion)
     local progressRequirement = (1 + currentSkillLevel) * tes3.findGMST("fMiscSkillBonus").value
     local newProgress = math.floor(progressRequirement * currentRatio)
     skillData.progress = newProgress
-    logger:warn("%s skill has been updated to API version %s, progress has been scaled to %s",
-        self.name, newApiVersion, newProgress)
+    logger:warn("'%s' has been updated to API version %s, progress has been scaled to %s",
+        self, newApiVersion, newProgress)
 end
 
 ---Initialise the persistent data on the reference.data table
