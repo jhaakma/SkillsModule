@@ -31,7 +31,7 @@ local PERSISTENT_KEYS = {
 ---@field progress number The current progress of the skill
 ---@field active SkillsModule.Skill.active Whether the skill is active or not
 ---@field attribute? tes3.attribute (Deprecated) The attribute of the skill
----@field apiVersion number The API version of the skill
+---@field apiVersion? number The API version of the skill
 
 
 

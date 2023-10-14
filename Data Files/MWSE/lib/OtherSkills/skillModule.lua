@@ -51,7 +51,7 @@ function this.incrementSkill(id, skillVals)
         logger:error("Skill %s does not exist", id)
         return
     end
-    if skill:isActive() then
+    if not skill:isActive() then
         logger:debug("Skill %s is not active", id)
         return
     end
