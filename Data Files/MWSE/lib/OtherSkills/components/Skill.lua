@@ -223,6 +223,7 @@ end
 ---@param progressAmount number The amount of progress to add to the skill
 ---@return boolean Whether the skill levelled up or not
 function Skill:exercise(progressAmount)
+    logger:debug("Exercising %s skill by %s", self.name, progressAmount)
     ---@type SkillsModule.exerciseSkillEventData
     local exerciseSkillEventData = {
         skill = self,
@@ -233,21 +234,26 @@ function Skill:exercise(progressAmount)
     ---@type SkillsModule.exerciseSkillEventData
     local payload = event.trigger("SkillsModule:exerciseSkill", exerciseSkillEventData, { filter = self.id })
     if payload.block then
-        logger:trace("'%s' exercise blocked by event callback", self)
+        logger:debug("'%s' exercise blocked by event callback", self)
         return false
     end
+    logger:debug("Progress increase after skill events: %s", payload.progress)
     progressAmount = payload.progress
 
     --Add specialization bonus
     if self.specialization == tes3.player.object.class.specialization then
         progressAmount = progressAmount * SPECIALIZATION_MULTI
+        logger:debug("Specialization bonus applied, new progress increase: %s", progressAmount)
     end
     --Add progress
     self.progress = self.progress + progressAmount
-
+    logger:debug("New Progress: %s", self.progress)
 
     --Level up if needed
-    if self.progress >= self:getProgressRequirement() then
+    local progressRequirement = self:getProgressRequirement()
+    logger:debug("Requires %s progress to level up", progressRequirement)
+    if self.progress >= progressRequirement then
+        logger:debug("Progress requirement met")
         self:levelUp()
         return true
     end
@@ -336,7 +342,7 @@ function Skill:scaleProgressForV2(skillData, newApiVersion)
     local currentProgress = skillData.progress or 0
     local currentRatio = currentProgress / 100
     local currentSkillLevel = skillData.value
-    local progressRequirement = (1 + currentSkillLevel) * tes3.findGMST("fMiscSkillBonus").value
+    local progressRequirement = (1 + currentSkillLevel) * config.mcm.fOtherSkillBonus
     local newProgress = math.floor(progressRequirement * currentRatio)
     skillData.progress = newProgress
     logger:warn("'%s' has been updated to API version %s, progress has been scaled to %s",
@@ -373,6 +379,7 @@ end
 
 ---@private
 function Skill:getProgressRequirement()
+    logger:trace("Getting progress requirement for %s skill", self.name)
     if self.apiVersion == 1 then
         -- Legacy calculation had a flat progression rate
         return 100
@@ -383,8 +390,10 @@ function Skill:getProgressRequirement()
             progress needed to level up is
             1 + the current skill level
         ]]
-        local progressRequirement = (1 + self.base) * tes3.findGMST("fMiscSkillBonus").value
-        return math.floor(progressRequirement)
+
+        local progressRequirement = math.floor((1 + self.base) * config.mcm.fOtherSkillBonus)
+        logger:trace("Progress requirement: %s", progressRequirement)
+        return progressRequirement
     end
     logger:error("no api version set")
 end

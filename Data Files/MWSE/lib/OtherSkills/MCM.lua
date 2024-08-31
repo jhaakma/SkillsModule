@@ -52,6 +52,17 @@ local function registerModConfig()
     local page = template:createSideBarPage{label = "Settings"}
     addSideBar(page)
 
+    page:createSlider{
+        label = "Skill Progression Multiplier",
+        description = "Multiplier on the amount of progress required to level up a skill; Default is 1.25 (the same as misc skills in vanilla).",
+        decimalPlaces = 2,
+        min = 0.0,
+        max = 2.0,
+        step = 0.1,
+        jump = 0.2,
+        variable = mwse.mcm.createTableVariable{ id = "fOtherSkillBonus", table = config.mcm}
+    }
+
     page:createDropdown{
         label = "Log Level",
         description = "Set the logging level for all Loggers.",

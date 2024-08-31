@@ -8,6 +8,7 @@ config.metadata = toml.loadMetadata("Skills Module") --[[@as MWSE.Metadata]]
 ---@class SkillsModule.MCM
 local mcmDefault = {
     logLevel = "INFO",
+    fOtherSkillBonus = 1.25,
 }
 ---@type SkillsModule.MCM
 config.mcm = mwse.loadConfig(config.configPath, mcmDefault)
