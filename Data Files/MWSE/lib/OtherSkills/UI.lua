@@ -132,6 +132,7 @@ local function createSkillTooltip(skill)
     createDescriptionLabel(midBlock, skill)
     local bottomBlock = createBottomBlock(outerBlock)
     createProgressBar(bottomBlock, skill)
+    event.trigger("OtherSkills:uiSkillTooltip", {skill = skill, tooltip = tooltip}, {filter = skill.id})
 end
 
 --[[

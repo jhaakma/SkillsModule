@@ -16,3 +16,8 @@
 ---@class SkillsModule.skillActiveChangedEventData
 ---@field skill SkillsModule.Skill The SkillsModule skill object that has changed active state.
 ---@field isActive boolean *Read only*. Whether the skill is active or not.
+
+--- This event is invoked when making a tooltip for a skill.
+---@class SkillsModule.uiSkillTooltip
+---@field skill SkillsModule.Skill The SkillsModule skill object whose tooltip was created.
+---@field tooltip tes3uiElement The tooltip that was created.
